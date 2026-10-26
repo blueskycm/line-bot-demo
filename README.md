@@ -8,6 +8,7 @@
 - Quick Reply 快速查詢：依區域 → 縣市 → 日期選擇
 - 即時讀取 Google Sheets 的天氣資料(資料爬蟲程式來自[中央氣象署天氣資料自動擷取器](https://github.com/blueskycm/taiwan-weather-crawler))
 - 支援今日 / 明日 / 一週預報
+- 今日查詢依台灣日期，從該縣市當日有效預報中選擇最新紀錄；可使用前一天抓取的預報，並顯示資料寫入時間（台灣時間）。
 - 圖示化顯示天氣描述、體感、紫外線指數
 - 部署於 Google Cloud Run，支援擴充與穩定運行
 
@@ -81,6 +82,7 @@ gcloud run deploy line-weather-bot \
 - Google Sheets 權限需設為「允許 Service Account 讀取」
 - .env 供本地測試，.env.yaml 用於 Cloud Run 部署
 - 若有更新請重新 build 並部署
+- 2026-10-26：今日查詢修正已部署至 `trn3-466407` / `asia-east1` / `line-weather-bot`，版本 `line-weather-bot-00005-hmw`。正式表清晨 05:00 唯讀情境檢查及 webhook 空事件測試（HTTP 200）通過。
 
 ---
 ## 📝 授權與貢獻

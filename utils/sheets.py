@@ -1,6 +1,7 @@
 import gspread
 from google.oauth2.service_account import Credentials
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from math import isfinite
 import os
 from dotenv import load_dotenv
 import json
@@ -68,19 +69,44 @@ def get_all_cities():
 def get_today_weather_for_city(city_name: str):
     sheet = get_sheet("weather_data")
     rows = sheet.get_all_values()
-    today_str = datetime.today().strftime("%Y-%m-%d")
-    latest_timestamp = sorted({row[11] for row in rows[1:] if row[1] == city_name})[-1]
+    taiwan_tz = timezone(timedelta(hours=8))
+    today_str = datetime.now(taiwan_tz).strftime("%Y-%m-%d")
+    latest_row = None
+    latest_capture = None
 
+    # 先找今天的有效預報，再選最新紀錄；允許使用昨天抓取的預報。
     for row in rows[1:]:
-        if row[1] == city_name and row[0] == today_str and row[11] == latest_timestamp:
-            day_min, day_max, day_desc = row[2], row[3], row[4]
-            night_min, night_max, night_desc = row[5], row[6], row[7]
-            feel_min, feel_max = row[8], row[9]
-            uvi = row[10]
-            weekday = get_weekday(today_str)
-            return f"""📍 {city_name} 今日天氣（{today_str} {weekday}）\n\n{get_weather_icon(day_desc)} 白天：{day_min}°C - {day_max}°C\n　　　　 {day_desc}\n{get_weather_icon(night_desc)} 晚上：{night_min}°C - {night_max}°C\n　　　　 {night_desc}\n🌀 體感：{feel_min}°C - {feel_max}°C\n🔆 紫外線指數：{get_uvi_level(uvi)}\n\n資料來源：交通部中央氣象署(https://www.cwa.gov.tw/V8/C/)"""
+        if len(row) < 12 or row[1] != city_name or row[0] != today_str:
+            continue
+        if not str(row[4]).strip() or str(row[4]).strip() == "未知":
+            continue
+        try:
+            day_min_value, day_max_value = float(row[2]), float(row[3])
+            if not (isfinite(day_min_value) and isfinite(day_max_value)):
+                continue
+            if day_min_value > day_max_value:
+                continue
+            capture = datetime.fromisoformat(str(row[11]).strip())
+            if capture.tzinfo is None:
+                capture = capture.replace(tzinfo=taiwan_tz)
+            capture = capture.astimezone(taiwan_tz)
+        except (ValueError, TypeError, OverflowError):
+            continue
+        if latest_capture is None or capture > latest_capture:
+            latest_row, latest_capture = row, capture
 
-    return f"找不到 {city_name} 的今日天氣資料 😢"
+    if latest_row is None:
+        return f"找不到 {city_name} 的今日天氣資料 😢"
+
+    row = latest_row
+    day_min, day_max, day_desc = row[2], row[3], row[4]
+    night_min, night_max, night_desc = row[5], row[6], row[7]
+    feel_min, feel_max = row[8], row[9]
+    uvi = row[10]
+    weekday = get_weekday(today_str)
+    updated_at = latest_capture.strftime("%Y-%m-%d %H:%M:%S")
+    return f"""📍 {city_name} 今日天氣（{today_str} {weekday}）\n\n{get_weather_icon(day_desc)} 白天：{day_min}°C - {day_max}°C\n　　　　 {day_desc}\n{get_weather_icon(night_desc)} 晚上：{night_min}°C - {night_max}°C\n　　　　 {night_desc}\n🌀 體感：{feel_min}°C - {feel_max}°C\n🔆 紫外線指數：{get_uvi_level(uvi)}\n\n🕒 資料更新時間（台灣）：{updated_at}\n資料來源：交通部中央氣象署(https://www.cwa.gov.tw/V8/C/)"""
+
 
 # 🌤 明天天氣
 
